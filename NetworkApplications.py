@@ -132,16 +132,20 @@ class ICMPPing(NetworkApplication):
 
     def sendOnePing(self, icmpSocket, destinationAddress, ID):
         # 1. Build ICMP header
-
+        ECHO_SEND = 8    #type = 8
+        self_seq = 0
+        header = struct.pack("!BBHHH", ECHO_SEND, 0, 0, ID, self_seq)
         # 2. Checksum ICMP packet using given function
+        checked = NetworkApplication.checksum(header)
         # 3. Insert checksum into packet
+        header = struct.pack("!BBHHH", ECHO_SEND, checked, 0, ID, self_seq)
         # 4. Send packet using socket
         # 5. Record time of sending
         pass
 
     def doOnePing(self, destinationAddress, timeout):
         # 1. Create ICMP socket
-        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW)
         # 2. Call sendOnePing function
         # 3. Call receiveOnePing function
         # 4. Close ICMP socket
@@ -159,8 +163,9 @@ class ICMPPing(NetworkApplication):
                 self.doOnePing()
             except:
                 print()
+                break
         # 3. Print out the returned delay (and other relevant details) using the printOneResult method
-        self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
+        self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriat
         # 4. Continue this process until stopped
 
 
