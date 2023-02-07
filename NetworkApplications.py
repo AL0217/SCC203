@@ -151,6 +151,7 @@ class ICMPPing(NetworkApplication):
         sth = []
         data = bytes(sth)
         packet = header + data
+        print(packet)
         # 4. Send packet using socket
         while packet:
             sent = icmpSocket.sendto(packet, (destinationAddress, 1))
@@ -162,7 +163,7 @@ class ICMPPing(NetworkApplication):
 
     def doOnePing(self, destinationAddress, timeout):
         # 1. Create ICMP socket
-        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW)
+        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         icmpSocket.bind((destinationAddress, 0))
         # 2. Call sendOnePing function
         timeSent = self.sendOnePing(icmpSocket, destinationAddress, 1)      #id is 1
@@ -179,13 +180,12 @@ class ICMPPing(NetworkApplication):
         ip = socket.gethostbyname(args.hostname)
         # print(ip)
         # 2. Call doOnePing function, approximately every second
-        while True:
-            try:
-                self.doOnePing(ip, 1)
-                time.sleep(1)
-            except:
-                print('hahaha')
-                break
+        self.doOnePing(ip, 1)
+        print('aaa')
+        # while True:
+        #         self.doOnePing(ip, 1)
+        #         print('aaa')
+        #         time.sleep(1)
         # 3. Print out the returned delay (and other relevant details) using the printOneResult method
         self.printOneResult(ip, 50, 20.0, 150) # Example use of printOneResult - complete as appropriat
         # 4. Continue this process until stopped
