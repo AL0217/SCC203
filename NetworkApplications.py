@@ -144,14 +144,17 @@ class ICMPPing(NetworkApplication):
         ECHO_REQUEST = 8
         ECHO_REPLY = 0
         header = struct.pack("!BBHHH", ECHO_REQUEST, 0, 0, ID, 1)
-        # 2. Checksum ICMP packet using given function
-        checked = NetworkApplication.checksum(header)
-        # 3. Insert checksum into packet
-        header = struct.pack("!BBHHH", ECHO_REQUEST, checked, 0, ID, 1)
+        
+        print(type(header))
         sth = []
         data = bytes(sth)
         packet = header + data
         print(packet)
+        # 2. Checksum ICMP packet using given function
+        checked = NetworkApplication.checksum(packet.decode("utf-8"))
+        # 3. Insert checksum into packet
+        packet = struct.pack("!BBHHH", ECHO_REQUEST, checked, 0, ID, 1)
+
         # 4. Send packet using socket
         while packet:
             sent = icmpSocket.sendto(packet, (destinationAddress, 1))
@@ -164,7 +167,6 @@ class ICMPPing(NetworkApplication):
     def doOnePing(self, destinationAddress, timeout):
         # 1. Create ICMP socket
         icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
-        icmpSocket.bind((destinationAddress, 0))
         # 2. Call sendOnePing function
         timeSent = self.sendOnePing(icmpSocket, destinationAddress, 1)      #id is 1
         print(timeSent)
