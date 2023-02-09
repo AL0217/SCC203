@@ -124,22 +124,31 @@ class ICMPPing(NetworkApplication):
         # 1. Wait for the socket to receive a reply
         icmpSocket.settimeout(timeout)
         timeleft = timeout
+        recv_Flag = False
         # 2. Once received, record time of receipt, otherwise, handle a timeout
         while True:
-            try:
-                data, addr = icmpSocket.recvfrom(8)
-                timeReceive = time.time()
-            except socket.timeout:
-                print("caught timeout")
-                break    
+            started_select = time.time()
+            ready = select.select([icmpSocket], [], [], timeleft)
+            data = None
+            if ready[0] == []: # Timeout
+                break
+            data, addr = icmpSocket.recvfrom(1024)
+            time_received = time.time()
+            if data != None:
+                break
+            timeleft -= time_received - timeSent
+            if timeleft <= 0:       #timeout
+                return
         # 3. Compare the time of receipt to time of sending, producing the total network delay
-        delay = timeReceive - timeSent
+        delay =  time_received - timeSent
         # 4. Unpack the packet header for useful information, including the ID
-        print(delay)
-        temp = struct.unpack("!BBHHH" , data)
-        print(temp)
+        icmp_header = data[20:28]
+        type, code, checksum, packet_id, sequence = struct.unpack('!BBHHH', icmp_header)
         # 5. Check that the ID matches between the request and reply
+        if(ID != packet_id):
+            return
         # 6. Return total network delay
+        return delay * 1000
 
     def sendOnePing(self, icmpSocket, destinationAddress, ID):
         # 1. Build ICMP header
@@ -153,12 +162,11 @@ class ICMPPing(NetworkApplication):
         checked = self.checksum(header + data)
         # 3. Insert checksum into packet    
         packet = struct.pack("!BBHHH", ECHO_REQUEST, 0, checked, ID, 1)
-        print(packet)
+        # print('size ' ,sys.getsizeof(data))
 
         # 4. Send packet using socket
         while packet:
             sent = icmpSocket.sendto(packet, (destinationAddress, 1))
-            print(sent)
             packet = packet[sent:]
         # 5. Record time of sending
         timeSent = time.time()
@@ -170,28 +178,25 @@ class ICMPPing(NetworkApplication):
         icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         # 2. Call sendOnePing function
         timeSent = self.sendOnePing(icmpSocket, destinationAddress, 1)      #id is 1
-        print(timeSent)
         # 3. Call receiveOnePing function
-        delay = self.receiveOnePing(icmpSocket, destinationAddress, 1, timeSent, 5)
+        delay = self.receiveOnePing(icmpSocket, destinationAddress, 1, timeSent, timeout)
         # 4. Close ICMP socket
         icmpSocket.close()
         # 5. Return total network delay
+        return delay
         pass
 
     def __init__(self, args):
         print('Ping to: %s...' % (args.hostname))
-        # 1. Look up hostname, resolving it to an IP address
-        ip = socket.gethostbyname(args.hostname)
-        # print(ip)
-        # 2. Call doOnePing function, approximately every second
-        self.doOnePing(ip, 1)
-        # while True:
-        #         self.doOnePing(ip, 1)
-        #         print('aaa')
-        #         time.sleep(1)
-        # 3. Print out the returned delay (and other relevant details) using the printOneResult method
-        self.printOneResult(ip, 50, 20.0, 150) # Example use of printOneResult - complete as appropriat
-        # 4. Continue this process until stopped
+        while True:
+             # 1. Look up hostname, resolving it to an IP address
+            ip = socket.gethostbyname(args.hostname)
+            # 2. Call doOnePing function, approximately every second
+            ping = self.doOnePing(ip, 1)
+            time.sleep(1)
+            # 3. Print out the returned delay (and other relevant details) using the printOneResult method
+            self.printOneResult(ip, 50, ping, 150) # Example use of printOneResult - complete as appropriat
+            # 4. Continue this process until stopped
 
 
 class Traceroute(NetworkApplication):
