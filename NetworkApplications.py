@@ -222,6 +222,7 @@ class Traceroute(NetworkApplication):
         # 4. Unpack the packet header for useful information, including the ID
         icmp_header = data[20:28]
         type, code, checksum, packet_id, sequence = struct.unpack('!BBHHH', icmp_header)
+        print("type", type)
 
         # 6. Return total network delay
         return delay * 1000
@@ -264,14 +265,15 @@ class Traceroute(NetworkApplication):
 
     def __init__(self, args):
         print('Traceroute to: %s...' % (args.hostname))
-        TTL = 1
+        count = 1
         while True:
+            TTL = struct.pack('b', count)
             ip = socket.gethostbyname(args.hostname)
             ping = self.tracing(ip, 1, TTL)
             time.sleep(1)
             # Please ensure you print each result using the printOneResult method!
             self.printOneResult(ip, 50, ping, TTL)
-            TTL += 1
+            count += 1
             
 
         
