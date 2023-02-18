@@ -15,7 +15,7 @@ import select
 def setupArgumentParser() -> argparse.Namespace:
         parser = argparse.ArgumentParser(
             description='A collection of Network Applications developed for SCC.203.')
-        parser.set_defaults(func=ICMPPing, hostname='lancaster.ac.uk')
+        parser.set_defaults(func=Traceroute, hostname='lancaster.ac.uk')
         subparsers = parser.add_subparsers(help='sub-command help')
         
         parser_p = subparsers.add_parser('ping', aliases=['p'], help='run ping')
@@ -200,10 +200,81 @@ class ICMPPing(NetworkApplication):
 
 
 class Traceroute(NetworkApplication):
+    def receiveOnePing(self, icmpSocket, destinationAddress, ID, timeSent, timeout):
+        # 1. Wait for the socket to receive a reply
+        icmpSocket.settimeout(timeout)
+        timeleft = timeout
+        # 2. Once received, record time of receipt, otherwise, handle a timeout
+        while True:
+            ready = select.select([icmpSocket], [], [], timeleft)
+            data = None
+            if ready[0] == []: # Timeout
+                break
+            data, addr = icmpSocket.recvfrom(1024)
+            time_received = time.time()
+            if data != None:
+                break
+            timeleft -= time_received - timeSent
+            if timeleft <= 0:       #timeout
+                return
+        # 3. Compare the time of receipt to time of sending, producing the total network delay
+        delay =  time_received - timeSent
+        # 4. Unpack the packet header for useful information, including the ID
+        icmp_header = data[20:28]
+        type, code, checksum, packet_id, sequence = struct.unpack('!BBHHH', icmp_header)
+
+        # 6. Return total network delay
+        return delay * 1000
+
+    def sendOnePing(self, icmpSocket, destinationAddress, ID):
+        # 1. Build ICMP header
+        ECHO_REQUEST = 8
+        header = struct.pack("!BBHHH", ECHO_REQUEST, 0, 0, ID, 1)
+        data = []
+        data = bytes(data)
+
+        # 2. Checksum ICMP packet using given function
+        checked = self.checksum(header + data)
+        # 3. Insert checksum into packet    
+        packet = struct.pack("!BBHHH", ECHO_REQUEST, 0, checked, ID, 1)
+        # print('size ' ,sys.getsizeof(data))
+
+        # 4. Send packet using socket
+        while packet:
+            sent = icmpSocket.sendto(packet, (destinationAddress, 1))
+            packet = packet[sent:]
+        # 5. Record time of sending
+        timeSent = time.time()
+        return timeSent
+        pass
+
+    def tracing(self, destinationAddress, timeout, ttl):
+        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+        icmpSocket.setsockopt(socket.SOL_SOCKET, socket.IP_TTL, 1)
+    
+        # 2. Call sendOnePing function
+        timeSent = self.sendOnePing(icmpSocket, destinationAddress, 1)      #id is 1
+        # 3. Call receiveOnePing function
+        delay = self.receiveOnePing(icmpSocket, destinationAddress, 1, timeSent, timeout)
+        # 4. Close ICMP socket
+        icmpSocket.close()
+        # 5. Return total network delay
+        return delay
+        pass
 
     def __init__(self, args):
-        # Please ensure you print each result using the printOneResult method!
         print('Traceroute to: %s...' % (args.hostname))
+        TTL = 1
+        while True:
+            ip = socket.gethostbyname(args.hostname)
+            ping = self.tracing(ip, 1, TTL)
+            time.sleep(1)
+            # Please ensure you print each result using the printOneResult method!
+            self.printOneResult(ip, 50, ping, TTL)
+            TTL += 1
+            
+
+        
 
 class ParisTraceroute(NetworkApplication):
 
