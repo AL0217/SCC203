@@ -222,10 +222,11 @@ class Traceroute(NetworkApplication):
         # 4. Unpack the packet header for useful information, including the ID
         icmp_header = data[20:28]
         type, code, checksum, packet_id, sequence = struct.unpack('!BBHHH', icmp_header)
-        print("type", type)
+        if type == 0:
+            return False, delay * 1000 
 
         # 6. Return total network delay
-        return delay * 1000
+        return True, delay * 1000
 
     def sendOnePing(self, icmpSocket, destinationAddress, ID):
         # 1. Build ICMP header
@@ -251,7 +252,7 @@ class Traceroute(NetworkApplication):
 
     def tracing(self, destinationAddress, timeout, ttl):
         icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
-        icmpSocket.setsockopt(socket.SOL_SOCKET, socket.IP_TTL, 1)
+        icmpSocket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
     
         # 2. Call sendOnePing function
         timeSent = self.sendOnePing(icmpSocket, destinationAddress, 1)      #id is 1
@@ -269,11 +270,13 @@ class Traceroute(NetworkApplication):
         while True:
             TTL = struct.pack('b', count)
             ip = socket.gethostbyname(args.hostname)
-            ping = self.tracing(ip, 1, TTL)
+            flag, ping = self.tracing(ip, 1, TTL)
             time.sleep(1)
-            # Please ensure you print each result using the printOneResult method!
-            self.printOneResult(ip, 50, ping, TTL)
+            self.printOneResult(ip, 50, ping, count)
             count += 1
+            if(flag == False):
+                break
+            
             
 
         
