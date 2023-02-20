@@ -15,7 +15,7 @@ import select
 def setupArgumentParser() -> argparse.Namespace:
         parser = argparse.ArgumentParser(
             description='A collection of Network Applications developed for SCC.203.')
-        parser.set_defaults(func=Traceroute, hostname='lancaster.ac.uk')
+        parser.set_defaults(func=ParisTraceroute, hostname='lancaster.ac.uk')
         subparsers = parser.add_subparsers(help='sub-command help')
         
         parser_p = subparsers.add_parser('ping', aliases=['p'], help='run ping')
@@ -124,16 +124,15 @@ class ICMPPing(NetworkApplication):
         # 1. Wait for the socket to receive a reply
         icmpSocket.settimeout(timeout)
         timeleft = timeout
-        recv_Flag = False
         # 2. Once received, record time of receipt, otherwise, handle a timeout
         while True:
-            started_select = time.time()
             ready = select.select([icmpSocket], [], [], timeleft)
             data = None
             if ready[0] == []: # Timeout
                 break
             data, addr = icmpSocket.recvfrom(1024)
             time_received = time.time()
+            print("time received: ", time_received)
             if data != None:
                 break
             timeleft -= time_received - timeSent
@@ -257,23 +256,22 @@ class Traceroute(NetworkApplication):
         # 2. Call sendOnePing function
         timeSent = self.sendOnePing(icmpSocket, destinationAddress, 1)      #id is 1
         # 3. Call receiveOnePing function
-        delay = self.receiveOnePing(icmpSocket, destinationAddress, 1, timeSent, timeout)
+        flag, delay = self.receiveOnePing(icmpSocket, destinationAddress, 1, timeSent, timeout)
         # 4. Close ICMP socket
         icmpSocket.close()
         # 5. Return total network delay
-        return delay
+        return flag, delay
         pass
 
     def __init__(self, args):
         print('Traceroute to: %s...' % (args.hostname))
-        count = 1
+        ttl = 1
         while True:
-            TTL = struct.pack('b', count)
             ip = socket.gethostbyname(args.hostname)
-            flag, ping = self.tracing(ip, 1, TTL)
+            flag, ping = self.tracing(ip, 1, ttl)
             time.sleep(1)
-            self.printOneResult(ip, 50, ping, count)
-            count += 1
+            self.printOneResult(ip, 50, ping, ttl)
+            ttl += 1
             if(flag == False):
                 break
             
@@ -282,10 +280,97 @@ class Traceroute(NetworkApplication):
         
 
 class ParisTraceroute(NetworkApplication):
+    def receiveOnePing(self, icmpSocket, timeSent, timeout):
+        global timeleft, time_received, data
+        # 1. Wait for the socket to receive a reply
+        icmpSocket.settimeout(timeout)
+        timeleft = timeout
+        # 2. Once received, record time of receipt, otherwise, handle a timeout
+        while True:
+            ready = select.select([icmpSocket], [], [], timeleft)
+            data = None
+            if ready[0] == []: # Timeout
+                print("Timeout Error")
+                exit()
+            data, addr = icmpSocket.recvfrom(1024)
+            time_received = time.time()
+            if data != None:
+                break
+            timeleft -= time_received - timeSent
+            if timeleft <= 0:       #timeout
+                print("Timeout Error")
+                exit()
+        # 3. Compare the time of receipt to time of sending, producing the total network delay
+        # print("time received: ", time_received)
+        delay =  time_received - timeSent
+        # 4. Unpack the packet header for useful information, including the ID
+        icmp_header = data[20:28]
+        type, code, checksum, packet_id, sequence = struct.unpack('!BBHHH', icmp_header)
+        # print(int(data[0:20], 16))
+
+        # 6. Return total network delay
+        return addr[0], delay * 1000
+
+    def sendOnePing(self, icmpSocket, destinationAddress, ID):
+        # 1. Build ICMP header
+        ECHO_REQUEST = 8
+        header = struct.pack("!BBHHH", ECHO_REQUEST, 0, 0, ID, 1)
+        data = []
+        data = bytes(data)
+
+        # 2. Checksum ICMP packet using given function
+        checked = self.checksum(header + data)
+        # 3. Insert checksum into packet    
+        packet = struct.pack("!BBHHH", ECHO_REQUEST, 0, checked, ID, 1)
+        # print('size ' ,sys.getsizeof(data))
+
+        # 4. Send packet using socket
+        while packet:
+            sent = icmpSocket.sendto(packet, (destinationAddress, 1))
+            packet = packet[sent:]
+        # 5. Record time of sending
+        timeSent = time.time()
+        return timeSent
+        pass
+
+    def tracing(self, destinationAddress, timeout, ttl):
+        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+        icmpSocket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
+    
+        # 2. Call sendOnePing function
+        timeSent = self.sendOnePing(icmpSocket, destinationAddress, 1)      #id is 1
+        # 3. Call receiveOnePing function
+        src_ip, delay = self.receiveOnePing(icmpSocket, timeSent, timeout)
+        # 4. Close ICMP socket
+        icmpSocket.close()
+        # 5. Return total network delay
+        return src_ip, delay
+        pass
+
 
     def __init__(self, args):
         # Please ensure you print each result using the printOneResult method!
         print('Paris-Traceroute to: %s...' % (args.hostname))
+        ip = socket.gethostbyname(args.hostname)
+        print(ip)
+        ttl = 1
+        ipArr = []
+        while True:
+            time.sleep(1)
+            src_ip, ping = self.tracing(ip, 5, ttl)
+
+            if(src_ip not in ipArr):
+                ipArr.append(src_ip)
+                print(src_ip)
+                print(ipArr)
+            else:
+                ipArr.remove(src_ip)
+            self.printOneResult(src_ip, 50, ping, ttl)
+            ttl += 1
+            ipArr.append(src_ip)
+            if(src_ip == ip):
+                print(ipArr)
+                break
 
 class WebServer(NetworkApplication):
 
