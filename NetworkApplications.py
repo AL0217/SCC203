@@ -287,19 +287,15 @@ class ParisTraceroute(NetworkApplication):
         timeleft = timeout
         # 2. Once received, record time of receipt, otherwise, handle a timeout
         while True:
-            ready = select.select([icmpSocket], [], [], timeleft)
-            data = None
-            if ready[0] == []: # Timeout
-                print("Timeout Error")
-                exit()
-            data, addr = icmpSocket.recvfrom(1024)
-            time_received = time.time()
-            if data != None:
-                break
-            timeleft -= time_received - timeSent
-            if timeleft <= 0:       #timeout
-                print("Timeout Error")
-                exit()
+            try:
+                data = None
+                data, addr = icmpSocket.recvfrom(1024)
+                time_received = time.time()
+                if  data != None:
+                    break
+            except socket.timeout:
+                self.printAdditionalDetails()
+                return None, 0
         # 3. Compare the time of receipt to time of sending, producing the total network delay
         # print("time received: ", time_received)
         delay =  time_received - timeSent
@@ -334,7 +330,7 @@ class ParisTraceroute(NetworkApplication):
         pass
 
     def tracing(self, destinationAddress, timeout, ttl):
-        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
         icmpSocket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
     
         # 2. Call sendOnePing function
@@ -352,22 +348,27 @@ class ParisTraceroute(NetworkApplication):
         # Please ensure you print each result using the printOneResult method!
         print('Paris-Traceroute to: %s...' % (args.hostname))
         ip = socket.gethostbyname(args.hostname)
-        print(ip)
         ttl = 1
         ipArr = []
         while True:
             time.sleep(1)
             src_ip, ping = self.tracing(ip, 5, ttl)
-
+            if src_ip == None:              # If there's a timeout error
+                ttl += 1
+                continue
+            try:
+                name = socket.gethostbyaddr(src_ip)[0]
+            except:
+                name = ""
+                pass
+            self.printOneResult(src_ip, 50, ping, ttl, name)
+            ttl += 1
             if(src_ip not in ipArr):
                 ipArr.append(src_ip)
-                print(src_ip)
-                print(ipArr)
+                # print(src_ip)
+                # print(ipArr)
             else:
                 ipArr.remove(src_ip)
-            self.printOneResult(src_ip, 50, ping, ttl)
-            ttl += 1
-            ipArr.append(src_ip)
             if(src_ip == ip):
                 print(ipArr)
                 break
