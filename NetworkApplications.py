@@ -15,7 +15,7 @@ import select
 def setupArgumentParser() -> argparse.Namespace:
         parser = argparse.ArgumentParser(
             description='A collection of Network Applications developed for SCC.203.')
-        parser.set_defaults(func=ParisTraceroute, hostname='lancaster.ac.uk')
+        parser.set_defaults(func=ICMPPing, hostname='lancaster.ac.uk')
         subparsers = parser.add_subparsers(help='sub-command help')
         
         parser_p = subparsers.add_parser('ping', aliases=['p'], help='run ping')
@@ -330,7 +330,7 @@ class ParisTraceroute(NetworkApplication):
         pass
 
     def tracing(self, destinationAddress, timeout, ttl):
-        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
+        icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         icmpSocket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
     
         # 2. Call sendOnePing function
