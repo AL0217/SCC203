@@ -11,7 +11,6 @@ import random
 import traceback # useful for exception handling
 import threading
 import select
-import io
 
 def setupArgumentParser() -> argparse.Namespace:
         parser = argparse.ArgumentParser(
@@ -454,21 +453,20 @@ class WebServer(NetworkApplication):
         data, src_ip = tcpSocket.recvfrom(1024)
         # 2. Extract the path of the requested object from the message (second part of the HTTP header)
         url = data.split(b' ')[1].decode('utf-8')
-        url = url[1:]
+        url = url[1:]   #get rid of the \ in the beginning
         # 3. Read the corresponding file from disk
-        # try:
-        #     f = open(url, "rb")
-        #     response = "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n".format(len(buffer))
-        #     buffer = f.read()
-        #     tcpSocket.sendall(response.encode('utf-8') + buffer)
-        # except Exception:
-        #     print(Exception)
-        f = open(url, "rb")
-        buffer = f.read()
-        response = "HTTP/1.1 200 OK\r\n"
-        tcpSocket.sendall(response.encode('utf-8') + buffer)
         # 5. Send the correct HTTP response error
         # 6. Send the content of the file to the socket
+        try:
+            f = open(url, "rb")
+            buffer = f.read()
+            response = "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n"
+            tcpSocket.sendall(response.encode('utf-8') + buffer)
+        except Exception:
+            response = "HTTP/1.1 404 Error\r\nContent-Length: {}\r\n\r\n"
+            tcpSocket.sendall(response.encode('utf-8'))
+
+
         # 7. Close the connection socket
         tcpSocket.close()
         # Content-Length: {}\r\n\r\n         .format(len(buffer)
@@ -485,18 +483,74 @@ class WebServer(NetworkApplication):
         while True:
             serverSocket.listen(1)
             conn, src_ip = serverSocket.accept()
-            print(type(conn))
         # 4. When a connection is accepted, call handleRequest function, passing new connection socket (see https://docs.python.org/3/library/socket.html#socket.socket.accept)
             if conn != None:
                 self.handleRequest(conn)
+                break
         # 5. Close server socket
-            serverSocket.close()
+        serverSocket.close()
 
 
 class Proxy(NetworkApplication):
+    def proxy_handleRequest(self, proxySocket, serverSocket):
+        # proxySocket.connect(serverSocket)
+        data, addr = proxySocket.recvfrom(1024)
+        # .decode('utf-8')
+        ip = data.decode()
+        port = str(args.port + 100)
+        dest_ip = bytes(("127.0.0.1:" + port), 'utf-8')
+        
+        ip[3] = dest_ip
+        ip.join
+
+        serverSocket.listen(1)
+        proxySocket.sendto(list, ("127.0.0.1", args.port + 100))
+        conn, server_ip = serverSocket.accept()
+        self.server_handleRequest(conn)
+        proxySocket.close()
+
+    def server_handleRequest(self, tcpSocket):
+        # 1. Receive request message from the client on connection socket
+        data, src_ip = tcpSocket.recvfrom(1024)
+        # 2. Extract the path of the requested object from the message (second part of the HTTP header)
+        url = data.split(b' ')[1].decode('utf-8')
+        url = url[1:]   #get rid of the \ in the beginning
+        # 3. Read the corresponding file from disk
+        # 5. Send the correct HTTP response error
+        # 6. Send the content of the file to the socket
+        try:
+            f = open(url, "rb")
+            buffer = f.read()
+            response = "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n"
+            tcpSocket.sendall(response.encode('utf-8') + buffer)
+        except Exception:
+            response = "HTTP/1.1 404 Error\r\nContent-Length: {}\r\n\r\n"
+            tcpSocket.sendall(response.encode('utf-8'))
+
+
+        # 7. Close the connection socket
+        tcpSocket.close()
+        # Content-Length: {}\r\n\r\n         .format(len(buffer)
+        pass
 
     def __init__(self, args):
         print('Web Proxy starting on port: %i...' % (args.port))
+        serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        proxySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        serverSocket.bind(("127.0.0.1", args.port+100))
+        proxySocket.bind(("127.0.0.1", args.port))
+
+        conn = None
+
+        while True:
+            proxySocket.listen(1)
+            conn, src_ip = proxySocket.accept()
+            if conn != None:
+                self.proxy_handleRequest(conn)
+                break
+        serverSocket.close()
+
 
 
 if __name__ == "__main__":
